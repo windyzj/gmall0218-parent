@@ -25,5 +25,11 @@ public interface PublisherService {
      */
     public Map getOrderAmountHour(String date);
 
+    /*
+      按关键字进行灵活查询
+     */
+
+    public Map getSaleDetail(String date ,String keyword ,int pageSize ,int pageNo);
+
 
 }

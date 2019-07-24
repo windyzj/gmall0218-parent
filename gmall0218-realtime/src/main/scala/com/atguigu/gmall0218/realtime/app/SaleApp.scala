@@ -4,8 +4,8 @@ import java.util
 
 import com.alibaba.fastjson.JSON
 import com.atguigu.gmall0218.common.constant.GmallConstant
-import com.atguigu.gmall0218.realtime.bean.{OrderDetail, OrderInfo, SaleDetail}
-import com.atguigu.gmall0218.realtime.util.{MyKafkaUtil, RedisUtil}
+import com.atguigu.gmall0218.realtime.bean.{OrderDetail, OrderInfo, SaleDetail, UserInfo}
+import com.atguigu.gmall0218.realtime.util.{MyEsUtil, MyKafkaUtil, RedisUtil}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.dstream.{DStream, InputDStream}
@@ -119,14 +119,55 @@ object SaleApp {
       saleDetailList.toIterator
     }
 
+    // 用户购买明细 需要把客户详细信息关联进来，需要查询缓存
+    val saleDetailFullDstream: DStream[SaleDetail] = saleDetailDstream.mapPartitions { saleDetailItr =>
+      val jedis: Jedis = RedisUtil.getJedisClient
+      val saleDetailList: ListBuffer[SaleDetail] = ListBuffer()
+      for (saleDetail <- saleDetailItr) {
+        val userInfoKey = "user_info:" + saleDetail.user_id
+        val userInfoJson: String = jedis.get(userInfoKey)
+        val userInfo: UserInfo = JSON.parseObject(userInfoJson, classOf[UserInfo])
+        saleDetail.mergeUserInfo(userInfo)
+        saleDetailList += saleDetail
 
-    saleDetailDstream.foreachRDD{rdd=>
-      println(rdd.collect().mkString("\n"))
+      }
+      jedis.close()
+      saleDetailList.toIterator
     }
 
 
 
-   ssc.start()
+
+    //保存到ES中
+    saleDetailFullDstream.foreachRDD{rdd=>
+      rdd.foreachPartition{ saleDetailItr=>
+
+        val saleDetailWithKeyList: List[(String, SaleDetail)] = saleDetailItr.toList.map(saleDetail=>(saleDetail.order_detail_id,saleDetail))
+          MyEsUtil.insertBulk(GmallConstant.ES_INDEX_SALE_DETAIL,saleDetailWithKeyList)
+      }
+    }
+
+
+    //用户数据实时写入缓存中
+    val inputUserInfoDstream: InputDStream[ConsumerRecord[String, String]] = MyKafkaUtil.getKafkaStream(GmallConstant.KAFKA_TOPIC_USER,ssc)
+    inputUserInfoDstream.map(_.value).foreachRDD{ rdd=>
+      rdd.foreachPartition{ userInfoJsonItr=>
+            val jedis: Jedis =  RedisUtil.getJedisClient
+           for ( userInfoJson <- userInfoJsonItr ) {
+             println(s"userInfoJson = ${userInfoJson}")
+            //设计redis key      keytype-> string      keyname ->  user_info:user_id  keyvalue-> userInfoJson
+              val userInfo: UserInfo = JSON.parseObject(userInfoJson,classOf[UserInfo])
+             val userInfoKey= "user_info:"+userInfo.id
+             jedis.set(userInfoKey,userInfoJson)
+           }
+           jedis.close()
+
+      }
+    }
+
+
+
+    ssc.start()
     ssc.awaitTermination()
 
   }
