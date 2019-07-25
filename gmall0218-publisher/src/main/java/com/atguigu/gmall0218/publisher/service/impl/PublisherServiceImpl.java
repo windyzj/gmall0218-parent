@@ -77,44 +77,8 @@ public class PublisherServiceImpl implements PublisherService {
     }
 
     @Override
-    public Map getSaleDetail(String date, String keyword, int pageSize, int pageNo) {
-       String query= "{\n" +
-                "  \"query\": {\n" +
-                "     \"bool\": {\n" +
-                "       \"filter\": {\n" +
-                "         \"term\": {\n" +
-                "           \"dt\": \"2019-07-24\"\n" +
-                "         }\n" +
-                "       },\n" +
-                "       \"must\": {\n" +
-                "         \"match\":{\n" +
-                "           \"sku_name\":\n" +
-                "           {\n" +
-                "             \"query\":\"小米手机\",\n" +
-                "             \"operator\":\"and\"\n" +
-                "           }\n" +
-                "         }\n" +
-                "       }\n" +
-                "     }\n" +
-                "  },\n" +
-                "  \"aggs\": {\n" +
-                "    \"groupby_user_gender\": {\n" +
-                "      \"terms\": {\n" +
-                "        \"field\": \"user_gender\",\n" +
-                "        \"size\": 2\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"groupby_user_age\":{\n" +
-                "      \"terms\": {\n" +
-                "        \"field\": \"user_age\",\n" +
-                "        \"size\": 100\n" +
-                "      }\n" +
-                "\n" +
-                "    }\n" +
-                "  }\n" +
-                "  ,\"from\":10\n" +
-                "  , \"size\": 10\n" +
-                "}";
+    public Map getSaleDetail(String date, String keyword, int pageSize, int pageNo ) {
+
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         //过滤 匹配
